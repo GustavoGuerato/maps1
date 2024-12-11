@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roteirizador com Leaflet</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    />
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+      }
+
+      #controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+
+      #resultado {
+        margin-top: 10px;
+      }
+
+      .erro {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <h1>Calculadora de Rota</h1>
+      <label for="origem">Origem:</label>
+      <select id="origem">
+        <option value="Santo André">Santo André</option>
+        <option value="São Bernardo">São Bernardo</option>
+        <option value="São Caetano">São Caetano</option>
+        <option value="Mauá">Mauá</option>
+        <option value="Ribeirão Pires">Ribeirão Pires</option>
+        <option value="Diadema">Diadema</option>
+        <option value="São Paulo">São Paulo</option>
+        <option value="Guarulhos">Guarulhos</option>
+        <option value="Campinas">Campinas</option>
+        <option value="São Vicente">São Vicente</option>
+        <option value="Jundiaí">Jundiaí</option>
+        <option value="Sorocaba">Sorocaba</option>
+        <option value="Osasco">Osasco</option>
+        <option value="Barueri">Barueri</option>
+        <option value="Arujá">Arujá</option>
+        <option value="Carapicuíba">Carapicuíba</option>
+        <option value="Cotia">Cotia</option>
+        <option value="Embu das Artes">Embu das Artes</option>
+        <option value="Itapevi">Itapevi</option>
+        <option value="Mogi das Cruzes">Mogi das Cruzes</option>
+        <option value="Itaquaquecetuba">Itaquaquecetuba</option>
+        <option value="Ferraz de Vasconcelos">Ferraz de Vasconcelos</option>
+      </select>
+
+      <label for="destino">Destino:</label>
+      <select id="destino">
+        <option value="Santo André">Santo André</option>
+        <option value="São Bernardo">São Bernardo</option>
+        <option value="São Caetano">São Caetano</option>
+        <option value="Mauá">Mauá</option>
+        <option value="Ribeirão Pires">Ribeirão Pires</option>
+        <option value="Diadema">Diadema</option>
+        <option value="São Paulo">São Paulo</option>
+        <option value="Guarulhos">Guarulhos</option>
+        <option value="Campinas">Campinas</option>
+        <option value="São Vicente">São Vicente</option>
+        <option value="Jundiaí">Jundiaí</option>
+        <option value="Sorocaba">Sorocaba</option>
+        <option value="Osasco">Osasco</option>
+        <option value="Barueri">Barueri</option>
+        <option value="Arujá">Arujá</option>
+        <option value="Carapicuíba">Carapicuíba</option>
+        <option value="Cotia">Cotia</option>
+        <option value="Embu das Artes">Embu das Artes</option>
+        <option value="Itapevi">Itapevi</option>
+        <option value="Mogi das Cruzes">Mogi das Cruzes</option>
+        <option value="Itaquaquecetuba">Itaquaquecetuba</option>
+        <option value="Ferraz de Vasconcelos">Ferraz de Vasconcelos</option>
+      </select>
+
+      <button id="calcularBtn">Calcular Rota</button>
+      <div id="resultado"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+      const cidadesCoordenadas = {
+        "Santo André": [-23.6666, -46.5322],
+        "São Bernardo": [-23.7098, -46.5649],
+        "São Caetano": [-23.6263, -46.5642],
+        Mauá: [-23.6672, -46.462],
+        "Ribeirão Pires": [-23.7141, -46.4137],
+        Diadema: [-23.6865, -46.6234],
+        "São Paulo": [-23.5505, -46.6333],
+        Guarulhos: [-23.5013, -46.5333],
+        Campinas: [-23.1857, -46.8978],
+        "São Vicente": [-23.9682, -46.391],
+        Jundiaí: [-23.1857, -46.8978],
+        Sorocaba: [-23.5013, -47.4571],
+        Osasco: [-23.532, -46.7912],
+        Barueri: [-23.5015, -46.8796],
+        Arujá: [-23.3343, -46.3362],
+        Carapicuíba: [-23.5187, -46.8366],
+        Cotia: [-23.6101, -46.9267],
+        "Embu das Artes": [-23.6397, -46.8577],
+        Itapevi: [-23.5572, -47.0117],
+        "Mogi das Cruzes": [-23.5248, -46.1871],
+        Itaquaquecetuba: [-23.47, -46.5019],
+        "Ferraz de Vasconcelos": [-23.529, -46.3752],
+      };
+
+      const map = L.map("map").setView([-23.6693, -46.5386], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      function adicionarMarcador(cidade) {
+        const coordenadas = cidadesCoordenadas[cidade];
+        L.marker(coordenadas).addTo(map).bindPopup(cidade).openPopup();
+      }
+
+      function adicionarRota(caminho) {
+        const coordenadasRota = caminho.map(
+          (cidade) => cidadesCoordenadas[cidade]
+        );
+        L.polyline(coordenadasRota, { color: "blue" }).addTo(map);
+      }
+
+      function limparMarcadores() {
+        map.eachLayer(function (layer) {
+          if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            map.removeLayer(layer);
+          }
+        });
+      }
+
+      document
+        .getElementById("calcularBtn")
+        .addEventListener("click", function () {
+          const origem = document.getElementById("origem").value;
+          const destino = document.getElementById("destino").value;
+
+          const dados = {
+            origem: origem,
+            destino: destino,
+          };
+
+          fetch("http://127.0.0.1:5000/calcular-rota", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(dados),
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.erro) {
+                document.getElementById(
+                  "resultado"
+                ).innerHTML = `<p class="erro">Erro: ${data.erro}</p>`;
+              } else {
+                const caminho = data.caminho.join(" → ");
+                const distancia = data.distancia.toFixed(2);
+                document.getElementById(
+                  "resultado"
+                ).innerHTML = `<p><strong>Caminho:</strong> ${caminho}</p><p><strong>Distância:</strong> ${distancia} km</p>`;
+
+                limparMarcadores();
+                adicionarMarcador(origem);
+                adicionarMarcador(destino);
+
+                if (data.caminho.length > 2) {
+                  for (let i = 1; i < data.caminho.length - 1; i++) {
+                    adicionarMarcador(data.caminho[i]);
+                  }
+                }
+
+                adicionarRota(data.caminho);
+                map.fitBounds([
+                  cidadesCoordenadas[origem],
+                  cidadesCoordenadas[destino],
+                ]);
+              }
+            })
+            .catch((error) => {
+              console.error("Erro ao calcular a rota:", error);
+              document.getElementById(
+                "resultado"
+              ).innerHTML = `<p class="erro">Erro ao se comunicar com o servidor. Tente novamente mais tarde.</p>`;
+            });
+        });
+    </script>
+  </body>
+</html>
