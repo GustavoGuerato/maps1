@@ -25,6 +25,8 @@ async def obter_coordenadas(cidade):
             async with session.post(API_COORDENADAS, json={"endereco": cidade}) as response:
                 if response.status == 200:
                     coordenadas = await response.json()
+                    if not coordenadas.get("Latitude") or not coordenadas.get("Longitude"):
+                        raise ValueError(f"Coordenadas inválidas para {cidade}: {coordenadas}")
                     cache_coordenadas[cidade] = coordenadas
                     return coordenadas
                 else:
@@ -48,7 +50,9 @@ async def calcular_distancia(p1, p2):
         async with aiohttp.ClientSession() as session:
             async with session.post(API_DISTANCIA, json=payload) as response:
                 if response.status == 200:
-                    distancia = (await response.json())["Distancia"]
+                    distancia = (await response.json()).get("Distancia")
+                    if distancia is None:
+                        raise ValueError("Resposta inválida ao calcular distância")
                     cache_distancias[key] = distancia
                     return distancia
                 else:
@@ -62,9 +66,12 @@ async def inicializar_grafo(cidades):
     coordenadas = {}
 
     # Obtém as coordenadas de todas as cidades
-    coordenadas_resultados = await asyncio.gather(*[obter_coordenadas(cidade) for cidade in cidades])
-    for cidade, coord in zip(cidades, coordenadas_resultados):
-        coordenadas[cidade] = coord
+    try:
+        coordenadas_resultados = await asyncio.gather(*[obter_coordenadas(cidade) for cidade in cidades])
+        for cidade, coord in zip(cidades, coordenadas_resultados):
+            coordenadas[cidade] = coord
+    except Exception as e:
+        raise Exception(f"Erro ao inicializar coordenadas: {e}")
 
     # Calcula as distâncias entre todas as cidades
     async def calcular_distancia_para_cidade(cidade_origem):
@@ -77,7 +84,10 @@ async def inicializar_grafo(cidades):
             if cidade_origem != cidade_destino:
                 grafo[cidade_origem][cidade_destino] = distancia
 
-    await asyncio.gather(*[calcular_distancia_para_cidade(cidade) for cidade in cidades])
+    try:
+        await asyncio.gather(*[calcular_distancia_para_cidade(cidade) for cidade in cidades])
+    except Exception as e:
+        raise Exception(f"Erro ao calcular distâncias: {e}")
 
     return grafo
 
@@ -126,14 +136,26 @@ async def calcular_rota():
 
     try:
         grafo = await inicializar_grafo(cidades)
+        print("Grafo gerado:", grafo)  # Log para verificar o grafo gerado
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
     caminho, distancia = dijkstra(grafo, origem, destino)
 
-    if caminho:
-        return jsonify({"caminho": caminho, "distancia": distancia})
-    return jsonify({"erro": "Caminho não encontrado"}), 404
+    if caminho and len(caminho) > 2:
+        return jsonify({"caminho": caminho, "distancia": distancia, "grafo": grafo})
+    elif caminho:
+        # Tenta adicionar uma cidade intermediária
+        for cidade in cidades:
+            if cidade not in caminho:
+                caminho1, distancia1 = dijkstra(grafo, origem, cidade)
+                caminho2, distancia2 = dijkstra(grafo, cidade, destino)
+                if caminho1 and caminho2:
+                    caminho_intermediario = caminho1[:-1] + caminho2
+                    distancia_total = distancia1 + distancia2
+                    return jsonify({"caminho": caminho_intermediario, "distancia": distancia_total, "grafo": grafo})
+
+    return jsonify({"erro": "Caminho não encontrado com pelo menos uma cidade intermediária."}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)
