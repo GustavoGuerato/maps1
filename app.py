@@ -3,6 +3,7 @@ import heapq
 import asyncio
 import aiohttp
 from flask_cors import CORS
+import os  # Para usar variáveis de ambiente
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +16,7 @@ API_DISTANCIA = "https://googlelatlog.azurewebsites.net/api/get_distancia?code=_
 cache_coordenadas = {}
 cache_distancias = {}
 
+
 async def obter_coordenadas(cidade):
     """Obtém as coordenadas de uma cidade usando a API."""
     if cidade in cache_coordenadas:
@@ -22,17 +24,26 @@ async def obter_coordenadas(cidade):
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(API_COORDENADAS, json={"endereco": cidade}) as response:
+            async with session.post(
+                API_COORDENADAS, json={"endereco": cidade}
+            ) as response:
                 if response.status == 200:
                     coordenadas = await response.json()
-                    if not coordenadas.get("Latitude") or not coordenadas.get("Longitude"):
-                        raise ValueError(f"Coordenadas inválidas para {cidade}: {coordenadas}")
+                    if not coordenadas.get("Latitude") or not coordenadas.get(
+                        "Longitude"
+                    ):
+                        raise ValueError(
+                            f"Coordenadas inválidas para {cidade}: {coordenadas}"
+                        )
                     cache_coordenadas[cidade] = coordenadas
                     return coordenadas
                 else:
-                    raise Exception(f"Erro ao obter coordenadas para {cidade}: {response.status}")
+                    raise Exception(
+                        f"Erro ao obter coordenadas para {cidade}: {response.status}"
+                    )
     except Exception as e:
         raise Exception(f"Falha ao obter coordenadas: {e}")
+
 
 async def calcular_distancia(p1, p2):
     """Calcula a distância entre dois pontos usando a API."""
@@ -60,6 +71,7 @@ async def calcular_distancia(p1, p2):
     except Exception as e:
         raise Exception(f"Falha ao calcular distância: {e}")
 
+
 async def inicializar_grafo(cidades):
     """Inicializa o grafo de cidades com distâncias entre elas."""
     grafo = {}
@@ -67,7 +79,9 @@ async def inicializar_grafo(cidades):
 
     # Obtém as coordenadas de todas as cidades
     try:
-        coordenadas_resultados = await asyncio.gather(*[obter_coordenadas(cidade) for cidade in cidades])
+        coordenadas_resultados = await asyncio.gather(
+            *[obter_coordenadas(cidade) for cidade in cidades]
+        )
         for cidade, coord in zip(cidades, coordenadas_resultados):
             coordenadas[cidade] = coord
     except Exception as e:
@@ -76,24 +90,32 @@ async def inicializar_grafo(cidades):
     # Calcula as distâncias entre todas as cidades
     async def calcular_distancia_para_cidade(cidade_origem):
         grafo[cidade_origem] = {}
-        distancias = await asyncio.gather(*[
-            calcular_distancia(coordenadas[cidade_origem], coordenadas[cidade_destino]) 
-            for cidade_destino in cidades if cidade_origem != cidade_destino
-        ])
+        distancias = await asyncio.gather(
+            *[
+                calcular_distancia(
+                    coordenadas[cidade_origem], coordenadas[cidade_destino]
+                )
+                for cidade_destino in cidades
+                if cidade_origem != cidade_destino
+            ]
+        )
         for cidade_destino, distancia in zip(cidades, distancias):
             if cidade_origem != cidade_destino:
                 grafo[cidade_origem][cidade_destino] = distancia
 
     try:
-        await asyncio.gather(*[calcular_distancia_para_cidade(cidade) for cidade in cidades])
+        await asyncio.gather(
+            *[calcular_distancia_para_cidade(cidade) for cidade in cidades]
+        )
     except Exception as e:
         raise Exception(f"Erro ao calcular distâncias: {e}")
 
     return grafo
 
+
 def dijkstra(grafo, origem, destino):
     """Implementação do algoritmo de Dijkstra."""
-    distancias = {cidade: float('inf') for cidade in grafo}
+    distancias = {cidade: float("inf") for cidade in grafo}
     distancias[origem] = 0
     pq = [(0, origem)]
     predecessores = {}
@@ -120,23 +142,41 @@ def dijkstra(grafo, origem, destino):
     caminho.insert(0, origem)
     return caminho, distancias[destino]
 
-@app.route('/calcular-rota', methods=['POST'])
+
+@app.route("/calcular-rota", methods=["POST"])
 async def calcular_rota():
     """Endpoint para calcular a melhor rota entre duas cidades."""
     dados = request.json
-    origem = dados['origem']
-    destino = dados['destino']
+    origem = dados["origem"]
+    destino = dados["destino"]
 
     cidades = [
-        "Santo André", "São Bernardo", "São Caetano", "Mauá", "Ribeirão Pires", "Diadema",
-        "São Paulo", "Guarulhos", "Campinas", "São Vicente", "Jundiaí", "Sorocaba", "Osasco",
-        "Barueri", "Arujá", "Carapicuíba", "Cotia", "Embu das Artes", "Itapevi", "Mogi das Cruzes",
-        "Itaquaquecetuba", "Ferraz de Vasconcelos"
+        "Santo André",
+        "São Bernardo",
+        "São Caetano",
+        "Mauá",
+        "Ribeirão Pires",
+        "Diadema",
+        "São Paulo",
+        "Guarulhos",
+        "Campinas",
+        "São Vicente",
+        "Jundiaí",
+        "Sorocaba",
+        "Osasco",
+        "Barueri",
+        "Arujá",
+        "Carapicuíba",
+        "Cotia",
+        "Embu das Artes",
+        "Itapevi",
+        "Mogi das Cruzes",
+        "Itaquaquecetuba",
+        "Ferraz de Vasconcelos",
     ]
 
     try:
         grafo = await inicializar_grafo(cidades)
-        print("Grafo gerado:", grafo)  # Log para verificar o grafo gerado
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
@@ -145,7 +185,6 @@ async def calcular_rota():
     if caminho and len(caminho) > 2:
         return jsonify({"caminho": caminho, "distancia": distancia, "grafo": grafo})
     elif caminho:
-        # Tenta adicionar uma cidade intermediária
         for cidade in cidades:
             if cidade not in caminho:
                 caminho1, distancia1 = dijkstra(grafo, origem, cidade)
@@ -153,9 +192,23 @@ async def calcular_rota():
                 if caminho1 and caminho2:
                     caminho_intermediario = caminho1[:-1] + caminho2
                     distancia_total = distancia1 + distancia2
-                    return jsonify({"caminho": caminho_intermediario, "distancia": distancia_total, "grafo": grafo})
+                    return jsonify(
+                        {
+                            "caminho": caminho_intermediario,
+                            "distancia": distancia_total,
+                            "grafo": grafo,
+                        }
+                    )
 
-    return jsonify({"erro": "Caminho não encontrado com pelo menos uma cidade intermediária."}), 404
+    return (
+        jsonify(
+            {"erro": "Caminho não encontrado com pelo menos uma cidade intermediária."}
+        ),
+        404,
+    )
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+if __name__ == "__main__":
+    host = "0.0.0.0"
+    port = int(os.environ.get("PORT", 5000))  # Porta padrão para produção
+    app.run(host=host, port=port)
