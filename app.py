@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import heapq
 import asyncio
 import aiohttp
@@ -142,6 +142,10 @@ def dijkstra(grafo, origem, destino):
     caminho.insert(0, origem)
     return caminho, distancias[destino]
 
+@app.route('/')
+def serve_index():
+    """Serve o arquivo index.html"""
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route("/calcular-rota", methods=["POST"])
 async def calcular_rota():
